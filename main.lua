@@ -28,6 +28,7 @@ Raidboss.Scale = 4
 Raidboss.LastHitTime = 0
 
 function Raidboss.Init( _eId)
+    if SendEvent then CSendEvent = SendEvent end
     Raidboss.eId = _eId
     Raidboss.Origin = GetPosition( _eId)
     Raidboss.ApplyKerbeChanges()
@@ -61,6 +62,16 @@ end
 function Raidboss.ApplyKerbeChanges()
     Raidboss.Pointers = {
         LeaderBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][6],
+        AuraBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][14],
+        -- 4: Recharge, int
+        -- 7: Range, float
+        -- 8: Duration, int
+        -- 10: ArmorShred, float
+        FearBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][12],
+        -- 4: Recharge, int
+        -- 7: Duration, int
+        -- 8: Flightdistance, float
+        -- 9: Range, float
         Logic = S5Hook.GetRawMem(9002416)[0][16][ 195*8+2]
     }
     -- set max health
@@ -79,6 +90,15 @@ function Raidboss.ApplyKerbeChanges()
     -- movement speed and scale
     S5Hook.GetEntityMem( Raidboss.eId)[31][1][5]:SetFloat( Raidboss.MovementSpeed)
     S5Hook.GetEntityMem( Raidboss.eId)[25]:SetFloat( Raidboss.Scale)
+
+    -- changes to fear and armor shred
+    Raidboss.Pointers.AuraBeh[10]:SetFloat(1) -- armor shred
+    Raidboss.Pointers.AuraBeh[8]:SetInt(600) -- duration
+    Raidboss.Pointers.AuraBeh[7]:SetFloat(3000) -- range of initial cast
+
+    Raidboss.Pointers.FearBeh[7]:SetInt(600) -- duration of fear
+    Raidboss.Pointers.FearBeh[8]:SetFloat(30000) -- flight distance
+    Raidboss.Pointers.FearBeh[9]:SetFloat(800) -- fear range
 end
 
 function Raidboss_OnHit()
@@ -177,6 +197,13 @@ function Raidboss.ExecuteAttack( _attackName)
     targetPos = Raidboss.FindNiceTarget()
     myAttack.callback( myAttack, targetPos)
 end
+Raidboss.MaxSoundRange = 7500
+function Raidboss.PlaySound( _soundId, _pos)
+    local x,y = GUI.Debug_GetMapPositionUnderMouse()
+    local dis = math.sqrt(Raidboss.GetDistanceSq( _pos, {X = x, Y = y}))
+    local factor = math.min(dis/Raidboss.MaxSoundRange, 1)
+    Sound.PlayGUISound( _soundId, 100 * (1-factor))
+end
 
 function Raidboss.FindNiceTarget()
 end
@@ -187,8 +214,54 @@ end
 function Raidboss.MeteorStrike( _schemeTable, _targetPos)
 
 end
-function Raidboss.FearStrike( _schemeTable, _targetPos)
 
+function Raidboss.FearStrike( _schemeTable, _targetPos)
+    StartSimpleJob("Raidboss_FearStrike")
+    Raidboss.FearStrikeCounter = 8
+    local pos = GetPosition(Raidboss.eId)
+    local angle, sin, cos
+    for i = 1, 6 do
+        angle = i*60
+        cos = math.cos(math.rad(angle))
+        sin = math.sin(math.rad(angle))
+        Logic.CreateEffect(GGL_Effects.FXDie, pos.X + 800*cos, pos.Y + 800*sin, 0)
+    end
+end
+function Raidboss_FearStrike()
+    Raidboss.FearStrikeCounter = Raidboss.FearStrikeCounter - 1
+    if Raidboss.FearStrikeCounter == 0 then
+        CSendEvent.HeroInflictFear( Raidboss.eId)
+        local pos = GetPosition(Raidboss.eId)
+        Raidboss.PlaySound( Sounds.VoicesHero7_HERO7_InflictFear_rnd_02, pos)
+        Logic.CreateEffect( GGL_Effects.FXKerberosFear, pos.X, pos.Y, 0)
+        return true
+    else
+        local angle, cos, sin, r
+        local pos = GetPosition(Raidboss.eId)
+        r = Raidboss.FearStrikeCounter * 100
+        for i = 1, 6 do
+            angle = (i + Raidboss.FearStrikeCounter/2) *60
+            cos = math.cos(math.rad(angle))
+            sin = math.sin(math.rad(angle))
+            Logic.CreateEffect(GGL_Effects.FXDie, pos.X + r*cos, pos.Y + r*sin, 0)
+        end
+    end
+end
+function Raidboss.ArmorShred( _schemeTable, _targetPos)
+    local pos = GetPosition(Raidboss.eId)
+    local angle, sin, cos, r
+    for i = 1, 3 do
+        r = i*1000
+        for j = 1, 6*i do
+            angle = (j + i/2)*60/i
+            sin = math.sin(math.rad(angle))
+            cos = math.cos(math.rad(angle))
+            Logic.CreateEffect( GGL_Effects.FXMaryDemoralize, pos.X + sin*r, pos.Y + cos*r, 0)
+        end
+    end
+    Logic.CreateEffect( GGL_Effects.FXMaryDemoralize, pos.X, pos.Y, 0)
+    CSendEvent.HeroActivateAura( Raidboss.eId)
+    Raidboss.PlaySound( Sounds.VoicesHero7_HERO7_Madness_rnd_01, pos)
 end
 
 
@@ -196,7 +269,7 @@ end
 Raidboss.AttackSchemes = {
     PoisonStrike = {
         -- determines the probability of using this attack next
-        weight = 100,
+        weight = 15,
         -- the function that will be called if this function was selected
         callback = Raidboss.PoisonStrike,
         -- the system assumes that this is the duration of the attack, e.g. the next attack will be selected after this time
@@ -209,7 +282,7 @@ Raidboss.AttackSchemes = {
         radius = 750
     },
     MeteorStrike = {
-        weight = 30,
+        weight = 5,
         callback = Raidboss.MeteorStrike,
         duration = 10,
         disallowRepeatedCasting = true,
@@ -219,24 +292,15 @@ Raidboss.AttackSchemes = {
         radius = 750
     },
     FearInducingStrike = {
-        weight = 30,
+        weight = 300,
         callback = Raidboss.FearStrike,
-        duration = 10,
-        disallowRepeatedCasting = true,
-        -- internal stuff
-        chargeTime = 5,
-        fearDuration = 20,
-        fleeDistance = 3000,
-        range = 1500
+        duration = 16,
+        disallowRepeatedCasting = true
     },
     ArmorShred = {
-        weight = 30,
-        callback = Raidboss.FearStrike,
-        duration = 10,
-        disallowRepeatedCasting = true,
-        -- internal stuff
-        shredValue = 50,
-        shredDuration = 60,
-        range = 1500
+        weight = 300,
+        callback = Raidboss.ArmorShred,
+        duration = 2,
+        disallowRepeatedCasting = true
     }
 }
