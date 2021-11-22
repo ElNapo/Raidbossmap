@@ -57,6 +57,6 @@ function FirstMapAction()
     local eId = Logic.CreateEntity( 195, pos.X, pos.Y, 0, 2)
     Raidboss.Init( eId)
     LuaDebugger.Log(eId)
-    
+    Game.GameTimeSetFactor(5)
     SetHostile(1,2)
 end
