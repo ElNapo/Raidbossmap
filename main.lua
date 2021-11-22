@@ -66,11 +66,17 @@ Raidboss.AttackSchemes = {
     }
 }
 Raidboss.CombatRange = 3000
+Raidboss.MaxHealth = 100000
+Raidboss.Armor = 0
+Raidboss.Damage = 100
+Raidboss.AttackRange = 800
+Raidboss.MovementSpeed = 600
+Raidboss.Scale = 8
 
 function Raidboss.Init( _eId)
     Raidboss.eId = _eId
     Raidboss.Origin = GetPosition( _eId)
-
+    Raidboss.ApplyKerbeChanges()
     -- setup special attack scheduler
     Raidboss.AttackScheduler = {
         lastAttack = nil,
@@ -93,6 +99,28 @@ function Raidboss.Init( _eId)
 
     -- setup damage system
     Raidboss.HurtTrigger = Trigger.RequestTrigger(Events.LOGIC_EVENT_ENTITY_HURT_ENTITY, nil, "Raidboss_OnHit", 1)
+end
+function Raidboss.ApplyKerbeChanges()
+    Raidboss.Pointers = {
+        LeaderBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][6],
+        Logic = S5Hook.GetRawMem(9002416)[0][16][ 195*8+2]
+    }
+    -- set max health
+    Raidboss.Pointers.Logic[13]:SetInt(Raidboss.MaxHealth)
+    -- set armor
+    Raidboss.Pointers.Logic[61]:SetInt(Raidboss.Armor)
+    -- fix health difference
+    Logic.HealEntity( Raidboss.eId, Raidboss.MaxHealth - Logic.GetEntityHealth(Raidboss.eId))
+    -- set regen to 0
+    Raidboss.Pointers.LeaderBeh[28]:SetInt(0)
+    -- set attack range
+    Raidboss.Pointers.LeaderBeh[23]:SetFloat(Raidboss.AttackRange)
+    -- set attack damage
+    Raidboss.Pointers.LeaderBeh[14]:SetInt(Raidboss.Damage)
+    
+    -- movement speed and scale
+    S5Hook.GetEntityMem( Raidboss.eId)[31][1][5]:SetFloat( Raidboss.MovementSpeed)
+    S5Hook.GetEntityMem( Raidboss.eId)[25]:SetFloat( Raidboss.Scale)
 end
 
 function Raidboss_OnHit()

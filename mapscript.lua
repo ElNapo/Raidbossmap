@@ -52,12 +52,6 @@ function FirstMapAction()
     InstallS5Hook()
     --Script.Load("maps\\user\\Raidbossmap\\SVFuncs.lua")
     --SW.SV.Init()
-    KerbeLeaderBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][6]
-    KerbeLeaderBeh[28]:SetInt(0)
-    KerbeLogic = S5Hook.GetRawMem(9002416)[0][16][ 195*8+2]
-    KerbeLogic[13]:SetInt(10)
-    --[13]:SetInt(10)
-
     local pos = GetPosition("Kerberos")
     DestroyEntity("Kerberos")
     local eId = Logic.CreateEntity( 195, pos.X, pos.Y, 0, 2)
