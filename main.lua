@@ -15,6 +15,7 @@ Raidboss.DamageMultipliers = {
     [EntityCategories.Spear] = 1,
     [EntityCategories.Sword] = 1
 }
+Raidboss.PlayerMultiplier = {}
 -- multiplier if no appropriate ECategory was found
 Raidboss.FallbackMultiplier = 0.1
 
@@ -40,7 +41,11 @@ function Raidboss.Init( _eId)
     }
     Raidboss.InCombat = false
     Raidboss.JobId = StartSimpleJob("Raidboss_Job")
-
+    if Predicate.IsNotSoldier == nil then
+        Predicate.IsNotSoldier = function() 
+            return function(_entity) return Logic.SoldierGetLeaderEntityID(_entity) == 0 end; 
+        end;
+    end
     -- create raidboss arena
     local dx, dy, angle, stoneId
     for i = 1, 72 do
@@ -56,6 +61,7 @@ function Raidboss.Init( _eId)
     Raidboss.DamageTracker = {}
     for i = 0, 16 do
         Raidboss.DamageTracker[i] = 0
+        Raidboss.DamageMultipliers[i] = 1
     end
 
 end
@@ -92,7 +98,7 @@ function Raidboss.ApplyKerbeChanges()
     S5Hook.GetEntityMem( Raidboss.eId)[25]:SetFloat( Raidboss.Scale)
 
     -- changes to fear and armor shred
-    Raidboss.Pointers.AuraBeh[10]:SetFloat(1) -- armor shred
+    Raidboss.Pointers.AuraBeh[10]:SetFloat(0) -- armor shred
     Raidboss.Pointers.AuraBeh[8]:SetInt(600) -- duration
     Raidboss.Pointers.AuraBeh[7]:SetFloat(3000) -- range of initial cast
 
@@ -132,6 +138,7 @@ end
 function Raidboss.ManipulateTrigger( _attackerId)
     local rawDamage = CEntity.TriggerGetDamage()
     local factor = Raidboss.FallbackMultiplier
+    local factor2 = Raidboss.DamageMultipliers[GetPlayer(_attackerId)]
     for k,v in pairs(Raidboss.DamageMultipliers) do
         if Logic.IsEntityInCategory( _attackerId, k) == 1 then
             --LuaDebugger.Log("Attacker has ECategory"..k)
@@ -139,7 +146,7 @@ function Raidboss.ManipulateTrigger( _attackerId)
             break
         end
     end
-    local newDamage = math.floor(rawDamage*factor)
+    local newDamage = math.floor(rawDamage*factor*factor2)
     --LuaDebugger.Log(factor)
     --LuaDebugger.Log(newDamage)
     Raidboss.DamageTracker[GetPlayer(_attackerId)] = Raidboss.DamageTracker[GetPlayer(_attackerId)] + newDamage
@@ -263,9 +270,138 @@ function Raidboss.ArmorShred( _schemeTable, _targetPos)
     CSendEvent.HeroActivateAura( Raidboss.eId)
     Raidboss.PlaySound( Sounds.VoicesHero7_HERO7_Madness_rnd_01, pos)
 end
+function Raidboss.ReflectArrow( _schemeTable, _targetPos)
+    --[[ Raidboss.ReflectArrowT = {
+        windUpMax = 50,
+        windUp = 50,
+        rangeStart = 3000,
+        rangeFinish = 800,
+        count = 36,
+        reflectDuration = 50,
+        reflectCounter = 50
+    }
+
+    StartSimpleHiResJob("Raidboss_ReflectArrowJob") ]]
+    local pos = GetPosition(Raidboss.eId)
+    local leaders = S5Hook.EntityIteratorTableize( Predicate.NotOfPlayer0(), Predicate.IsNotSoldier(), Predicate.InCircle( pos.X, pos.Y, 3000))
+    local eType, posLeader
+    for i = table.getn(leaders), 1, -1 do
+        if Logic.IsEntityInCategory( leaders[i], EntityCategories.LongRange) == 0 then
+            table.remove(leaders, i)
+        else
+            posLeader = GetPosition(leaders[i])
+            Logic.CreateEffect( GGL_Effects.FXMaryDemoralize, posLeader.X, posLeader.Y, 0)
+        end
+    end
+    StartSimpleHiResJob("Raidboss_ReflectArrow_Job")
+    Raidboss.ReflectArrowCounter = 21
+    Raidboss.PlaySound( Sounds.Coiner01, pos)
+    Raidboss.ReflectArrowLeaders = leaders
+end
+function Raidboss_ReflectArrow_Job()
+    Raidboss.ReflectArrowCounter = Raidboss.ReflectArrowCounter - 1
+    if math.mod(Raidboss.ReflectArrowCounter, 2) == 0 then
+        local myIndex = Raidboss.ReflectArrowCounter / 2
+        if myIndex > 0 then
+            Raidboss.PlaySound( Sounds["Misc_Countdown"..myIndex], GetPosition(Raidboss.eId))
+        end
+    end
+    if Raidboss.ReflectArrowCounter <= 0 then
+        Raidboss.ReflectArrowActivateShield()
+        StartSimpleJob("Raidboss_ReflectArrow_Job2")
+        Raidboss.ReflectArrowCounter = 8
+        return true
+    end
+end
+function Raidboss_ReflectArrow_Job2()
+    Raidboss.ReflectArrowCounter = Raidboss.ReflectArrowCounter - 1
+    if Raidboss.ReflectArrowCounter <= 0 then
+        Raidboss.ReflectArrowDeactivateShield()
+        return true
+    end
+    local pos
+    for k,v in pairs(Raidboss.ReflectArrowLeaders) do
+        if not IsDead(v) then
+            pos = GetPosition(v)
+            Logic.CreateEffect(GGL_Effects.FXMaryDemoralize, pos.X, pos.Y, 0)
+        end
+    end
+end
+--[[ function Raidboss_ReflectArrowJob()
+    Raidboss.ReflectArrowT.windUp = Raidboss.ReflectArrowT.windUp - 1
+    -- still in windup?
+    if Raidboss.ReflectArrowT.windUp > 0 then
+        local radiusDiff = Raidboss.ReflectArrowT.rangeStart -  Raidboss.ReflectArrowT.rangeFinish
+        local scale = Raidboss.ReflectArrowT.windUp / Raidboss.ReflectArrowT.windUpMax
+        local radius = Raidboss.ReflectArrowT.rangeFinish + scale*radiusDiff
+        local angleStep = 360 / Raidboss.ReflectArrowT.count
+        local sin, cos, myAngle
+        local pos = GetPosition(Raidboss.eId)
+        for i = 1, Raidboss.ReflectArrowT.count do
+            myAngle = math.rad(i * angleStep + 360*scale)
+            cos = math.cos(myAngle)
+            sin = math.sin(myAngle)
+            Logic.CreateEffect(GGL_Effects.FXDie, pos.X + radius*cos, pos.Y + radius*sin, 2)
+        end
+        return
+    end
+    -- if program arrives here: windUp completed
+    -- here: first tick after windup
+    if Raidboss.ReflectArrowT.reflectCounter == Raidboss.ReflectArrowT.reflectDuration then
+        Raidboss.ReflectArrowActivateShield()
+    end
+    if math.mod(Raidboss.ReflectArrowT.reflectCounter, 10) == 0 then
+        local angleStep = 360 / Raidboss.ReflectArrowT.count
+        local sin, cos, myAngle
+        local radius = Raidboss.ReflectArrowT.rangeFinish
+        local pos = GetPosition(Raidboss.eId)
+        for i = 1, Raidboss.ReflectArrowT.count do
+            myAngle = math.rad(i * angleStep)
+            cos = math.cos(myAngle)
+            sin = math.sin(myAngle)
+            Logic.CreateEffect(GGL_Effects.FXDieHero, pos.X + radius*cos, pos.Y + radius*sin, 2)
+        end
+    end
+    Raidboss.ReflectArrowT.reflectCounter = Raidboss.ReflectArrowT.reflectCounter - 1
+    if Raidboss.ReflectArrowT.reflectCounter <= 0 then
+        Raidboss.ReflectArrowDeactivateShield()
+        return true
+    end
+end ]]
+function Raidboss.ReflectArrowActivateShield()
+    Raidboss.ReflectArrowTrigger = Trigger.RequestTrigger(Events.LOGIC_EVENT_ENTITY_HURT_ENTITY, nil, "Raidboss_ReflectArrowOnHurt", 1)
+end
+function Raidboss_ReflectArrowOnHurt()
+    if Event.GetEntityID2() ~= Raidboss.eId then return end
+    local attacker = Event.GetEntityID1()
+    --LuaDebugger.Log(attacker)
+    if IsDead(attacker) then return end
+    local leader = attacker
+    if Logic.IsEntityInCategory( attacker, EntityCategories.Soldier) == 1 then
+        leader = Logic.GetEntityScriptingValue(attacker, 69)
+    end
+    LuaDebugger.Log(leader)
+    local dmg = 50
+    local radius = 0
+    for k,v in pairs(Raidboss.ReflectArrowLeaders) do
+        if v == leader then
+            local sPos = GetPosition(Raidboss.eId)
+            local tPos = GetPosition(attacker)
+            CppLogic.Effect.CreateProjectile( GGL_Effects.FXKalaArrow, sPos.X, sPos.Y, tPos.X, tPos.Y, dmg, radius, attacker, Raidboss.eId, GetPlayer(Raidboss.eId), nil, nil) 
+            return
+        end
+    end
+end
+function Raidboss.ReflectArrowDeactivateShield()
+    EndJob(Raidboss.ReflectArrowTrigger)
+end
 
 
 -- table concerning the attack schemes
+-- attacks:
+--  spawn adds
+--  kill/bomb ranged attackers
+--  meteor shower, multiple meteors spawn
 Raidboss.AttackSchemes = {
     PoisonStrike = {
         -- determines the probability of using this attack next
@@ -282,9 +418,13 @@ Raidboss.AttackSchemes = {
         radius = 750
     },
     MeteorStrike = {
+        -- determines the probability of using this attack next
         weight = 5,
+        -- the function that will be called if this function was selected
         callback = Raidboss.MeteorStrike,
+        -- the system assumes that this is the duration of the attack, e.g. the next attack will be selected after this time
         duration = 10,
+        -- parameters of the attack that will be used internally
         disallowRepeatedCasting = true,
         -- internal stuff
         chargeTime = 5,
@@ -301,6 +441,12 @@ Raidboss.AttackSchemes = {
         weight = 300,
         callback = Raidboss.ArmorShred,
         duration = 2,
+        disallowRepeatedCasting = true
+    },
+    ReflectArrows = {
+        weight = 300,
+        callback = Raidboss.ReflectArrow,
+        duration = 15,
         disallowRepeatedCasting = true
     }
 }

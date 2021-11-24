@@ -59,4 +59,9 @@ function FirstMapAction()
     LuaDebugger.Log(eId)
     Game.GameTimeSetFactor(5)
     SetHostile(1,2)
+    local darioPos = GetPosition(65538)
+    for i = 1, 5 do
+        Tools.CreateGroup( 1, Entities.PU_LeaderBow4, 8, darioPos.X, darioPos.Y, 0)
+        Tools.CreateGroup( 1, Entities.PU_LeaderSword4, 8, darioPos.X, darioPos.Y, 0)
+    end
 end
