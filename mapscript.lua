@@ -49,9 +49,11 @@ function FirstMapAction()
 	Tools.ExploreArea(1,1,900)
     Script.Load("maps\\user\\Raidbossmap\\main.lua")
     Script.Load("maps\\user\\Raidbossmap\\S5Hook.lua")
+    Script.Load("maps\\user\\Raidbossmap\\MeteorSystem.lua")
     InstallS5Hook()
     --Script.Load("maps\\user\\Raidbossmap\\SVFuncs.lua")
     --SW.SV.Init()
+    MeteorSys.Init()
     local pos = GetPosition("Kerberos")
     DestroyEntity("Kerberos")
     local eId = Logic.CreateEntity( 195, pos.X, pos.Y, 0, 2)
@@ -60,8 +62,8 @@ function FirstMapAction()
     Game.GameTimeSetFactor(5)
     SetHostile(1,2)
     local darioPos = GetPosition(65538)
-    for i = 1, 5 do
+    for i = 1, 16 do
         Tools.CreateGroup( 1, Entities.PU_LeaderBow4, 8, darioPos.X, darioPos.Y, 0)
-        Tools.CreateGroup( 1, Entities.PU_LeaderSword4, 8, darioPos.X, darioPos.Y, 0)
+        --Tools.CreateGroup( 1, Entities.PU_LeaderSword4, 8, darioPos.X, darioPos.Y, 0)
     end
 end
