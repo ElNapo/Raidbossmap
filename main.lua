@@ -28,6 +28,7 @@ Raidboss.AttackRange = 800
 Raidboss.MovementSpeed = 800
 Raidboss.Scale = 4
 Raidboss.LastHitTime = 0
+Raidboss.Regen = 100
 
 function Raidboss.Init( _eId, _pId)
     if SendEvent then CSendEvent = SendEvent end
@@ -122,6 +123,12 @@ function Raidboss_ControlKerbe()
     -- idle? lauf zurück zu faules stück
     if Logic.GetCurrentTaskList(Raidboss.eId) == "TL_MILITARY_IDLE" then 
         Logic.MoveSettler( Raidboss.eId, pOrigin.X, pOrigin.Y)
+    end
+    -- nicht im kampf? regeneriere dich
+    if not Raidboss.InCombat then
+        local curHealth = Logic.GetEntityHealth( Raidboss.eId)
+        local maxHealth = Logic.GetEntityMaxHealth( Raidboss.eId)
+        local toHeal = math.min( maxHealth - curHealth, Raidboss.Regen)
     end
 end
 function Raidboss.ApplyKerbeConfigChanges()
@@ -520,7 +527,7 @@ function Raidboss_MeteorRainJob()
     
     local x = pos.X + radius*math.sin(angle)
     local y = pos.Y + radius*math.cos(angle)
-    local range, damage = 250, 250
+    local range, dmg = 250, 250
     MeteorSys.Add( x, y, function()
         if not IsDead(Raidboss.eId) then
             CEntity.DealDamageInArea( Raidboss.eId, x, y, range, dmg)
