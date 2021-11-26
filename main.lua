@@ -16,6 +16,7 @@ Raidboss.DamageMultipliers = {
     [EntityCategories.Sword] = 1
 }
 Raidboss.PlayerMultiplier = {}
+Raidboss.PlayerFlatDamage = {}
 -- multiplier if no appropriate ECategory was found
 Raidboss.FallbackMultiplier = 0.1
 
@@ -78,6 +79,7 @@ function Raidboss.Init( _eId, _pId)
     for i = 0, 16 do
         Raidboss.DamageTracker[i] = 0
         Raidboss.PlayerMultiplier[i] = 1
+        Raidboss.PlayerFlatDamage[i] = 0
     end
     StartSimpleJob("Raidboss_ControlKerbe")
 
@@ -104,9 +106,9 @@ function Raidboss_ControlKerbe()
             myTargetRanged = myTargetRanged or eId
         end
     end
-    LuaDebugger.Log(myTargetHero)
-    LuaDebugger.Log(myTargetMelee)
-    LuaDebugger.Log(myTargetRanged)
+    --LuaDebugger.Log(myTargetHero)
+    --LuaDebugger.Log(myTargetMelee)
+    --LuaDebugger.Log(myTargetRanged)
     if myTargetHero ~= nil then
         Logic.GroupAttack( Raidboss.eId, myTargetHero)
     elseif myTargetMelee ~= nil then
@@ -197,6 +199,7 @@ function Raidboss.ManipulateTrigger( _attackerId)
     local rawDamage = Logic.GetEntityDamage( _attackerId)
     local factor = Raidboss.FallbackMultiplier
     local factor2 = Raidboss.PlayerMultiplier[GetPlayer(_attackerId)]
+    local flatDamage = Raidboss.PlayerFlatDamage[GetPlayer(_attackerId)]
     for k,v in pairs(Raidboss.DamageMultipliers) do
         if Logic.IsEntityInCategory( _attackerId, k) == 1 then
             --LuaDebugger.Log("Attacker has ECategory"..k)
@@ -204,7 +207,7 @@ function Raidboss.ManipulateTrigger( _attackerId)
             break
         end
     end
-    local newDamage = math.floor(rawDamage*factor*factor2)
+    local newDamage = math.floor(rawDamage*factor*factor2 + flatDamage)
     --LuaDebugger.Log(factor)
     --LuaDebugger.Log(newDamage)
     Raidboss.DamageTracker[GetPlayer(_attackerId)] = Raidboss.DamageTracker[GetPlayer(_attackerId)] + newDamage
@@ -249,7 +252,7 @@ function Raidboss.TickScheduler()
                     break
                 end
             end
-            LuaDebugger.Log("Selected "..attackName)
+            --LuaDebugger.Log("Selected "..attackName)
             Raidboss.ExecuteAttack( attackName)
         end
     end
