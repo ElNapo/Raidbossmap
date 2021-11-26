@@ -196,7 +196,7 @@ function Raidboss.ExecuteAttack( _attackName)
     t.lastAttack = _attackName
     t.timeToNextAttack = myAttack.duration
     local targetPos = Raidboss.FindNiceTarget()
-    LuaDebugger.Log(targetPos)
+    --LuaDebugger.Log(targetPos)
     myAttack.callback( myAttack, targetPos)
 end
 Raidboss.MaxSoundRange = 7500
@@ -383,7 +383,7 @@ function Raidboss_ReflectArrowOnHurt()
     if Logic.IsEntityInCategory( attacker, EntityCategories.Soldier) == 1 then
         leader = Logic.GetEntityScriptingValue(attacker, 69)
     end
-    LuaDebugger.Log(leader)
+    
     local dmg = 50
     local radius = 0
     for k,v in pairs(Raidboss.ReflectArrowLeaders) do
@@ -407,7 +407,61 @@ function Raidboss.SummonBomb( _schemeTable, _targetPos)
 	S5Hook.GetEntityMem(bombId)[31][0][4]:SetInt(80) --wait 8 seconds
 	S5Hook.GetEntityMem(bombId)[25]:SetFloat(8)
 end
+function Raidboss.MeteorRain( _schemeTable, _targetPos)
+    -- idea for trajectory:
+    -- map space around kerberos in polar coordinates, spawn at time t a ball at position
+    --  (p(t), t*omega)
+    -- p(t) = sum_{j=1}^6 w_j * (0.5*sin(j * 2pi / duration * t)+0.5)
+    -- omega = 4 pi / duration
+    _schemeTable.omega = 4 * math.pi / _schemeTable.duration 
+    local weights = {}
+    local sumOfWeights = 0
+    _schemeTable.phaseShifts = {}
+    for i = 1, 6 do
+        weights[i] = math.random()
+        sumOfWeights = sumOfWeights + weights[i]
+        _schemeTable.phaseShifts[i] = 2*math.pi*math.random()
+    end
+    -- apply to rescaling
+    for i = 1, 6 do
+        weights[i] = weights[i] / sumOfWeights * _schemeTable.range
+    end
 
+    _schemeTable.weights = weights
+    _schemeTable.p = function(t)
+        local ret = 0
+        local rad = 2*math.pi / _schemeTable.duration * t
+        for j = 1, 6 do
+            ret = ret + _schemeTable.weights[j]*(0.5 + 0.5*math.sin(rad*j + _schemeTable.phaseShifts[j]))
+        end
+        return ret
+    end
+    _schemeTable.internalTicker = 0
+    StartSimpleHiResJob("Raidboss_MeteorRainJob")
+end
+function Raidboss_MeteorRainJob()
+    --if not Counter.Tick2("MeteorRain", 2) then return end
+    local t = Raidboss.AttackSchemes.MeteorRain
+    t.internalTicker = t.internalTicker + 0.1
+
+    if t.internalTicker > t.duration then return true end 
+
+    local angle = t.internalTicker * t.omega
+    local radius = t.p(t.internalTicker)
+    local pos = GetPosition(Raidboss.eId)
+    
+    local x = pos.X + radius*math.sin(angle)
+    local y = pos.Y + radius*math.cos(angle)
+    local range, damage = 250, 150
+    MeteorSys.Add( x, y, function()
+        if not IsDead(Raidboss.eId) then
+            CEntity.DealDamageInArea( Raidboss.eId, x, y, range, dmg)
+        end
+        Logic.CreateEffect( GGL_Effects.FXExplosionShrapnel, x, y, 0)
+    end, 6)
+    Logic.CreateEffect(GGL_Effects.FXSalimHeal, x, y, 0)
+    Raidboss.PlaySound(Sounds.Military_SO_CannonTowerFire_rnd_1, {X = x, Y = y})
+end
 
 -- table concerning the attack schemes
 -- attacks:
@@ -457,5 +511,12 @@ Raidboss.AttackSchemes = {
         callback = Raidboss.SummonBomb,
         duration = 3,
         disallowRepeatedCasting = true
+    },
+    MeteorRain = {
+        weight = 2000,
+        callback = Raidboss.MeteorRain,
+        duration = 10,
+        disallowRepeatedCasting = true,
+        range = 4500
     }
 }

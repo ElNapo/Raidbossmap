@@ -31,7 +31,7 @@ function MeteorSys_HiResJob()
     end
 end
 function MeteorSys.SpawnBall( _x, _y)
-    local e = Logic.CreateEntity(Entities.CB_Camp23, _x, _y, 0, 0)
+    local e = Logic.CreateEntity(Entities.CB_Camp23, _x, _y, 0, 8)
     Logic.SetModelAndAnimSet(e, Models.XD_CannonBall)
     S5Hook.GetEntityMem(e)[76]:SetFloat(MeteorSys.InitialHeight) -- height
     

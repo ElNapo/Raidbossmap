@@ -56,7 +56,7 @@ function FirstMapAction()
     MeteorSys.Init()
 
     
-    Raidboss.Init( GetEntityId("Kerberos"), 5)
+    Raidboss.Init( GetEntityId("Kerberos"))
     Game.GameTimeSetFactor(5)
     SetHostile(1,2)
     local darioPos = GetPosition(65538)
