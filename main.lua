@@ -10,7 +10,7 @@ Raidboss.DamageMultipliers = {
     [EntityCategories.Cannon] = 1,
     [EntityCategories.CavalryHeavy] = 1,
     [EntityCategories.CavalryLight] = 1,
-    [EntityCategories.Hero] = 0.1,
+    [EntityCategories.Hero] = 1,
     [EntityCategories.Rifle] = 1,
     [EntityCategories.Spear] = 1,
     [EntityCategories.Sword] = 1
@@ -22,7 +22,7 @@ Raidboss.FallbackMultiplier = 0.1
 Raidboss.CombatRange = 3000
 Raidboss.MaxHealth = 100000
 Raidboss.Armor = 0
-Raidboss.Damage = 1
+Raidboss.Damage = 100
 Raidboss.AttackRange = 800
 Raidboss.MovementSpeed = 800
 Raidboss.Scale = 4
@@ -30,6 +30,12 @@ Raidboss.LastHitTime = 0
 
 function Raidboss.Init( _eId, _pId)
     if SendEvent then CSendEvent = SendEvent end
+    -- get control over framework on game closed
+    Framework_CloseGame_Orig = Framework.CloseGame
+    Framework.CloseGame = function()
+        SW.SV.GreatReset()
+        Framework_CloseGame_Orig()
+    end
     Raidboss.ApplyKerbeConfigChanges()
     Raidboss.Origin = GetPosition( _eId)
     Raidboss.pId = GetPlayer(_eId)
@@ -70,7 +76,7 @@ function Raidboss.Init( _eId, _pId)
     Raidboss.DamageTracker = {}
     for i = 0, 16 do
         Raidboss.DamageTracker[i] = 0
-        Raidboss.DamageMultipliers[i] = 1
+        Raidboss.PlayerMultiplier[i] = 1
     end
 
 end
@@ -81,15 +87,15 @@ function Raidboss.ApplyKerbeConfigChanges()
 
     -- changes to the fear
     SW.SetHeroFearRecharge( Entities.CU_BlackKnight, 0)
-    SW.SetHeroFearDuration( Entities.CU_BlackKnight, 30)
-    SW.SetHeroFearFlightDistance( Entities.CU_BlackKnight, 30000)
+    SW.SetHeroFearDuration( Entities.CU_BlackKnight, 20)
+    SW.SetHeroFearFlightDistance( Entities.CU_BlackKnight, 3000)
     SW.SetHeroFearRange( Entities.CU_BlackKnight, 800)
 
     -- changes to the aura
     SW.SetHeroAuraRecharge( Entities.CU_BlackKnight, 0)
     SW.SetHeroAuraRange( Entities.CU_BlackKnight, 3000)
     SW.SetHeroAuraDuration( Entities.CU_BlackKnight, 30)
-    SW.SetHeroAuraArmorMultiplier( Entities.CU_BlackKnight, 0)
+    SW.SetHeroAuraArmorMultiplier( Entities.CU_BlackKnight, 0.5)
 
     -- regen, attack range and attack damage
     SW.SetLeaderDamage( Entities.CU_BlackKnight, Raidboss.Damage)
@@ -98,7 +104,7 @@ function Raidboss.ApplyKerbeConfigChanges()
 
     -- changes to the bomb
     SW.SetBombDamage( Entities.XD_Bomb1, 300)
-    SW.SetBombRange( Entities.XD_Bomb1, 800)
+    SW.SetBombRange( Entities.XD_Bomb1, 600)
 end
 
 function Raidboss_OnHit()
@@ -107,6 +113,7 @@ function Raidboss_OnHit()
     if attacker == Raidboss.eId then
         Raidboss.InCombat = true
         Raidboss.LastHitTime = Logic.GetTime()
+        Raidboss.OnKerbeDealsDamage( attacked)
     end
     if attacked == Raidboss.eId then
         Raidboss.LastHitTime = Logic.GetTime()
@@ -129,10 +136,26 @@ end
 function Raidboss.GetDistanceSq( p1, p2)
     return (p1.X - p2.X)^2 + (p1.Y - p2.Y)^2
 end
-function Raidboss.ManipulateTrigger( _attackerId)
+function Raidboss.OnKerbeDealsDamage( _victimId)
+    -- only consider valid victims
+    if IsDead(_victimId) then return end
+    -- manipulate damage iff target is melee
+    if Logic.IsEntityInCategory( _victimId, EntityCategories.Melee) == 0 then return end
+    
+    -- get armor of obj
+    local armor = Logic.GetEntityArmor( _victimId)
     local rawDamage = CEntity.TriggerGetDamage()
+    local multiplier = math.max(1 - armor / 14, 0)
+    --LuaDebugger.Log(multiplier)
+
+    -- set damage of trigger
+    CEntity.TriggerSetDamage(math.ceil(rawDamage * multiplier))
+end
+function Raidboss.ManipulateTrigger( _attackerId)
+    -- local rawDamage = CEntity.TriggerGetDamage()
+    local rawDamage = Logic.GetEntityDamage( _attackerId)
     local factor = Raidboss.FallbackMultiplier
-    local factor2 = Raidboss.DamageMultipliers[GetPlayer(_attackerId)]
+    local factor2 = Raidboss.PlayerMultiplier[GetPlayer(_attackerId)]
     for k,v in pairs(Raidboss.DamageMultipliers) do
         if Logic.IsEntityInCategory( _attackerId, k) == 1 then
             --LuaDebugger.Log("Attacker has ECategory"..k)
@@ -251,7 +274,7 @@ function Raidboss.MeteorStrike( _schemeTable, _targetPos)
     local spread = 500
     local timeSpread = 2
     local dmg = 100
-    local range = 500
+    local range = 350
     for i = 1, 10 do
         local rX = math.random(-spread, spread)
         local rY = math.random(-spread, spread)
@@ -383,8 +406,8 @@ function Raidboss_ReflectArrowOnHurt()
     if Logic.IsEntityInCategory( attacker, EntityCategories.Soldier) == 1 then
         leader = Logic.GetEntityScriptingValue(attacker, 69)
     end
-    
-    local dmg = 50
+
+    local dmg = 75
     local radius = 0
     for k,v in pairs(Raidboss.ReflectArrowLeaders) do
         if v == leader then
@@ -452,7 +475,7 @@ function Raidboss_MeteorRainJob()
     
     local x = pos.X + radius*math.sin(angle)
     local y = pos.Y + radius*math.cos(angle)
-    local range, damage = 250, 150
+    local range, damage = 250, 250
     MeteorSys.Add( x, y, function()
         if not IsDead(Raidboss.eId) then
             CEntity.DealDamageInArea( Raidboss.eId, x, y, range, dmg)
@@ -470,7 +493,7 @@ end
 Raidboss.AttackSchemes = {
     MeteorStrike = {
         -- determines the probability of using this attack next
-        weight = 200,
+        weight = 35,
         -- the function that will be called if this function was selected
         callback = Raidboss.MeteorStrike,
         -- the system assumes that this is the duration of the attack, e.g. the next attack will be selected after this time
@@ -483,37 +506,37 @@ Raidboss.AttackSchemes = {
         radius = 750
     },
     FearInducingStrike = {
-        weight = 200,
+        weight = 15,
         callback = Raidboss.FearStrike,
         duration = 16,
         disallowRepeatedCasting = true
     },
     ArmorShred = {
-        weight = 200,
+        weight = 15,
         callback = Raidboss.ArmorShred,
         duration = 2,
         disallowRepeatedCasting = true
     },
     ReflectArrows = {
-        weight = 200,
+        weight = 15,
         callback = Raidboss.ReflectArrow,
         duration = 15,
         disallowRepeatedCasting = true
     },
     SummonAdds = {
-        weight = 200,
+        weight = 0,
         callback = Raidboss.SummonAdds,
         duration = 5,
         disallowRepeatedCasting = true
     },
     SummonBomb = {
-        weight = 200,
+        weight = 15,
         callback = Raidboss.SummonBomb,
         duration = 3,
         disallowRepeatedCasting = true
     },
     MeteorRain = {
-        weight = 2000,
+        weight = 5,
         callback = Raidboss.MeteorRain,
         duration = 10,
         disallowRepeatedCasting = true,
