@@ -594,7 +594,17 @@ SW.SV.Data = {
 	["HeroFearRecharge"] = {2, 7825012, 4, true},
 	["HeroFearDuration"] = {2, 7825012, 7, true},
 	["HeroFearFlightDistance"] = {2, 7825012, 8, false},
-	["HeroFearRange"] = {2, 7825012, 9, false}
+	["HeroFearRange"] = {2, 7825012, 9, false},
+	-- CAutoCannonBehavior
+	["CannonAmountOfShots"] = {2, 7834836, 4, true},
+	["CannonRotationSpeedRad"] = {2, 7834836, 5, false},
+	["CannonReloadTime"] = {2, 7834836, 10, true},
+	["CannonMaxRange"] = {2, 7834836, 11, false},
+	["CannonMinRange"] = {2, 7834836, 12, false},
+	["CannonDamageClass"] = {2, 7834836, 13, true},
+	["CannonDamage"] = {2, 7834836, 14, true},
+	["CannonDamageRange"] = {2, 7834836, 15, false}
+	
 }
 
 SW.SV.BackUps = {}
