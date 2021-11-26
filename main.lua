@@ -61,6 +61,7 @@ function Raidboss.Init( _eId, _pId)
             return function(_entity) return Logic.SoldierGetLeaderEntityID(_entity) == 0 end; 
         end;
     end
+
     -- create raidboss arena
     local dx, dy, angle, stoneId
     for i = 1, 72 do
@@ -78,7 +79,47 @@ function Raidboss.Init( _eId, _pId)
         Raidboss.DamageTracker[i] = 0
         Raidboss.PlayerMultiplier[i] = 1
     end
+    StartSimpleJob("Raidboss_ControlKerbe")
 
+end
+
+function Raidboss_ControlKerbe()
+    local posKerbe = GetPosition(Raidboss.eId)
+    -- if kerberos is in his arena? no need to do smth
+    if Raidboss.GetDistanceSq( posKerbe, Raidboss.Origin) < 2700*2700 then return end
+    
+    local pOrigin = Raidboss.Origin
+    local listOfValidTargets = S5Hook.EntityIteratorTableize(Predicate.InCircle(pOrigin.X, pOrigin.Y, 2500), Predicate.OfCategory(EntityCategories.Military), Predicate.IsNotSoldier())
+
+    local myTargetHero, myTargetMelee, myTargetRanged
+    local eId
+    for i = 1, table.getn(listOfValidTargets) do
+        eId = listOfValidTargets[i]
+        if eId == Raidboss.eId then -- do nothing here, DONT ATTACK YOURSELF
+        elseif Logic.IsEntityInCategory( eId, EntityCategories.Hero) == 1 then
+            myTargetHero = myTargetHero or eId
+        elseif Logic.IsEntityInCategory( eId, EntityCategories.LongRange) == 1 then
+            myTargetMelee = myTargetMelee or eId
+        elseif Logic.IsEntityInCategory( eId, EntityCategories.Melee) == 1 then
+            myTargetRanged = myTargetRanged or eId
+        end
+    end
+    LuaDebugger.Log(myTargetHero)
+    LuaDebugger.Log(myTargetMelee)
+    LuaDebugger.Log(myTargetRanged)
+    if myTargetHero ~= nil then
+        Logic.GroupAttack( Raidboss.eId, myTargetHero)
+    elseif myTargetMelee ~= nil then
+        Logic.GroupAttack( Raidboss.eId, myTargetMelee)
+    elseif myTargetRanged ~= nil then
+        Logic.GroupAttack( Raidboss.eId, myTargetRanged)
+    else
+        Logic.MoveSettler( Raidboss.eId, pOrigin.X, pOrigin.Y)
+    end
+    -- idle? lauf zurück zu faules stück
+    if Logic.GetCurrentTaskList(Raidboss.eId) == "TL_MILITARY_IDLE" then 
+        Logic.MoveSettler( Raidboss.eId, pOrigin.X, pOrigin.Y)
+    end
 end
 function Raidboss.ApplyKerbeConfigChanges()
     -- armor and max health
