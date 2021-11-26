@@ -542,9 +542,11 @@ SW.SV.Data = {
 	["MaxWorkers"] = {1, 7793784, 42, true},
 	["InitialWorkers"] = {1, 7793784, 43, true},
 	-- Logic for entities, GGL::CGLSettlerProps == 7791768
-	["AttractionPlaceNeeded"] = {1, 7791768, 136, true},
+	["SettlerMaxHealth"] = {1, 7791768, 13, true},
 	["SettlerExploration"] = {1, 7791768, 19, false},
 	["SettlerArmorClass"] = {1, 7791768, 60, true},
+	["SettlerArmor"] = {1, 7791768, 61, true},
+	["AttractionPlaceNeeded"] = {1, 7791768, 136, true},
 	-- BehTable for motivation, 7836116 == GGL::CAffectMotivationBehaviorProps
 	["MotivationProvided"] = {2, 7836116, 4, false},
 	-- BehTable for residences / farms, 7823028 == GGL::CLimitedAttachmentBehaviorProperties
@@ -568,6 +570,7 @@ SW.SV.Data = {
 	["LeaderDamageClass"] = {2, 7823268, 13, true},
 	["LeaderAoERange"] = {2, 7823268, 16, false},
 	["LeaderMaxRange"] = {2, 7823268, 23, false},
+	["LeaderRegen"] = {2, 7823268, 28, true},
 	["LeaderAutoRange"] = {2, 7823268, 30, false},
 	-- data for soldier stats; CSoldierBehaviorProps
 	["SoldierDamage"] = {2, 7814416, 14, true},
@@ -575,7 +578,23 @@ SW.SV.Data = {
 	["SoldierDamageClass"] = {2, 7814416, 13, true},
 	["SoldierMaxRange"] = {2, 7814416, 23, false},
 	-- CLimitedAttachmentBehaviorProperties
-	["LeaderMaxSoldiers"] = {2, 7823028, {5, 7}, true}
+	["LeaderMaxSoldiers"] = {2, 7823028, {5, 7}, true},
+	-- CBombBehaviorProperties
+	["BombRange"] = {2, 7832736, 4, false},
+	["BombDamage"] = {2, 7832736, 6, true},
+	-- CRangedEffectAbility
+	["HeroAuraRecharge"] = {2, 7818908, 4, true},
+	["HeroAuraRange"] = {2, 7818908, 7, false},
+	["HeroAuraDuration"] = {2, 7818908, 8, true},
+	["HeroAuraDamageMultiplier"] = {2, 7818908, 9, false},
+	["HeroAuraArmorMultiplier"] = {2, 7818908, 10, false},
+	["HeroAuraRegenMultiplier"] = {2, 7818908, 11, false},
+    -- 12 and 13 appear to be some multipliers aswell?
+	-- CInflictFearAbility
+	["HeroFearRecharge"] = {2, 7825012, 4, true},
+	["HeroFearDuration"] = {2, 7825012, 7, true},
+	["HeroFearFlightDistance"] = {2, 7825012, 8, false},
+	["HeroFearRange"] = {2, 7825012, 9, false}
 }
 
 SW.SV.BackUps = {}

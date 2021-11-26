@@ -24,15 +24,24 @@ Raidboss.MaxHealth = 100000
 Raidboss.Armor = 0
 Raidboss.Damage = 1
 Raidboss.AttackRange = 800
-Raidboss.MovementSpeed = 600
+Raidboss.MovementSpeed = 800
 Raidboss.Scale = 4
 Raidboss.LastHitTime = 0
 
-function Raidboss.Init( _eId)
+function Raidboss.Init( _eId, _pId)
     if SendEvent then CSendEvent = SendEvent end
-    Raidboss.eId = _eId
+    Raidboss.ApplyKerbeConfigChanges()
     Raidboss.Origin = GetPosition( _eId)
-    Raidboss.ApplyKerbeChanges()
+    Raidboss.pId = GetPlayer(_eId)
+
+    -- force respawn to enforce xml changes
+    DestroyEntity(_eId)
+    Raidboss.eId = Logic.CreateEntity(Entities.CU_BlackKnight, Raidboss.Origin.X, Raidboss.Origin.Y, 0, Raidboss.pId)
+    -- MS and scale
+    S5Hook.GetEntityMem( Raidboss.eId)[31][1][5]:SetFloat( Raidboss.MovementSpeed)
+    S5Hook.GetEntityMem( Raidboss.eId)[25]:SetFloat( Raidboss.Scale)
+    
+    
     -- setup special attack scheduler
     Raidboss.AttackScheduler = {
         lastAttack = nil,
@@ -65,46 +74,31 @@ function Raidboss.Init( _eId)
     end
 
 end
-function Raidboss.ApplyKerbeChanges()
-    Raidboss.Pointers = {
-        LeaderBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][6],
-        AuraBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][14],
-        -- 4: Recharge, int
-        -- 7: Range, float
-        -- 8: Duration, int
-        -- 10: ArmorShred, float
-        FearBeh = S5Hook.GetRawMem(9002416)[0][16][ 195 *8+5][12],
-        -- 4: Recharge, int
-        -- 7: Duration, int
-        -- 8: Flightdistance, float
-        -- 9: Range, float
-        Logic = S5Hook.GetRawMem(9002416)[0][16][ 195*8+2]
-    }
-    -- set max health
-    Raidboss.Pointers.Logic[13]:SetInt(Raidboss.MaxHealth)
-    -- set armor
-    Raidboss.Pointers.Logic[61]:SetInt(Raidboss.Armor)
-    -- fix health difference
-    Logic.HealEntity( Raidboss.eId, Raidboss.MaxHealth - Logic.GetEntityHealth(Raidboss.eId))
-    -- set regen to 0
-    Raidboss.Pointers.LeaderBeh[28]:SetInt(0)
-    -- set attack range
-    Raidboss.Pointers.LeaderBeh[23]:SetFloat(Raidboss.AttackRange)
-    -- set attack damage
-    Raidboss.Pointers.LeaderBeh[14]:SetInt(Raidboss.Damage)
-    
-    -- movement speed and scale
-    S5Hook.GetEntityMem( Raidboss.eId)[31][1][5]:SetFloat( Raidboss.MovementSpeed)
-    S5Hook.GetEntityMem( Raidboss.eId)[25]:SetFloat( Raidboss.Scale)
+function Raidboss.ApplyKerbeConfigChanges()
+    -- armor and max health
+    SW.SetSettlerMaxHealth( Entities.CU_BlackKnight, Raidboss.MaxHealth)
+    SW.SetSettlerArmor( Entities.CU_BlackKnight, Raidboss.Armor)
 
-    -- changes to fear and armor shred
-    Raidboss.Pointers.AuraBeh[10]:SetFloat(0) -- armor shred
-    Raidboss.Pointers.AuraBeh[8]:SetInt(600) -- duration
-    Raidboss.Pointers.AuraBeh[7]:SetFloat(3000) -- range of initial cast
+    -- changes to the fear
+    SW.SetHeroFearRecharge( Entities.CU_BlackKnight, 0)
+    SW.SetHeroFearDuration( Entities.CU_BlackKnight, 30)
+    SW.SetHeroFearFlightDistance( Entities.CU_BlackKnight, 30000)
+    SW.SetHeroFearRange( Entities.CU_BlackKnight, 800)
 
-    Raidboss.Pointers.FearBeh[7]:SetInt(600) -- duration of fear
-    Raidboss.Pointers.FearBeh[8]:SetFloat(30000) -- flight distance
-    Raidboss.Pointers.FearBeh[9]:SetFloat(800) -- fear range
+    -- changes to the aura
+    SW.SetHeroAuraRecharge( Entities.CU_BlackKnight, 0)
+    SW.SetHeroAuraRange( Entities.CU_BlackKnight, 3000)
+    SW.SetHeroAuraDuration( Entities.CU_BlackKnight, 30)
+    SW.SetHeroAuraArmorMultiplier( Entities.CU_BlackKnight, 0)
+
+    -- regen, attack range and attack damage
+    SW.SetLeaderDamage( Entities.CU_BlackKnight, Raidboss.Damage)
+    SW.SetLeaderMaxRange( Entities.CU_BlackKnight, Raidboss.AttackRange)
+    SW.SetLeaderRegen( Entities.CU_BlackKnight, 0)
+
+    -- changes to the bomb
+    SW.SetBombDamage( Entities.XD_Bomb1, 300)
+    SW.SetBombRange( Entities.XD_Bomb1, 800)
 end
 
 function Raidboss_OnHit()
@@ -250,9 +244,7 @@ function Raidboss.FindNiceTarget()
     end
 end
 
-function Raidboss.PoisonStrike( _schemeTable, _targetPos)
 
-end
 function Raidboss.MeteorStrike( _schemeTable, _targetPos)
     Raidboss.PlaySound( Sounds.Military_SO_CannonTowerFire_rnd_1, _targetPos)
     --local rX, rY
@@ -268,11 +260,10 @@ function Raidboss.MeteorStrike( _schemeTable, _targetPos)
                 CEntity.DealDamageInArea( Raidboss.eId, _targetPos.X + rX, _targetPos.Y + rY, range, dmg)
             end
             Logic.CreateEffect( GGL_Effects.FXExplosionShrapnel,  _targetPos.X + rX, _targetPos.Y + rY, 0)
-        end, 5 + math.random(-timeSpread*5, timeSpread*5)/5)
+        end, 6 + math.random(-timeSpread*5, timeSpread*5)/5)
         Logic.CreateEffect(GGL_Effects.FXSalimHeal, _targetPos.X + rX, _targetPos.Y + rY, 0)
     end
 end
-
 function Raidboss.FearStrike( _schemeTable, _targetPos)
     StartSimpleJob("Raidboss_FearStrike")
     Raidboss.FearStrikeCounter = 8
@@ -407,31 +398,25 @@ end
 function Raidboss.ReflectArrowDeactivateShield()
     EndJob(Raidboss.ReflectArrowTrigger)
 end
+function Raidboss.SummonAdds( _schemeTable, _targetPos) --TODO
+end
+function Raidboss.SummonBomb( _schemeTable, _targetPos)
+    local bombId = Logic.CreateEntity(Entities.XD_Bomb1, _targetPos.X, _targetPos.Y, 0, Raidboss.pId)
+	if bombId == 0 then return end
+    Raidboss.PlaySound( Sounds.VoicesHero2_HERO2_PlaceBomb_rnd_01, _targetPos)
+	S5Hook.GetEntityMem(bombId)[31][0][4]:SetInt(80) --wait 8 seconds
+	S5Hook.GetEntityMem(bombId)[25]:SetFloat(8)
+end
 
 
 -- table concerning the attack schemes
 -- attacks:
 --  spawn adds
---  kill/bomb ranged attackers
 --  meteor shower, multiple meteors spawn
 Raidboss.AttackSchemes = {
-    PoisonStrike = {
-        -- determines the probability of using this attack next
-        weight = 15,
-        -- the function that will be called if this function was selected
-        callback = Raidboss.PoisonStrike,
-        -- the system assumes that this is the duration of the attack, e.g. the next attack will be selected after this time
-        duration = 15,
-        -- if this attack was used it cannot be used again
-        disallowRepeatedCasting = true,
-        -- parameters of the attack that will be used internally
-        chargeTime = 5,
-        effectDOT = 100,
-        radius = 750
-    },
     MeteorStrike = {
         -- determines the probability of using this attack next
-        weight = 2000,
+        weight = 200,
         -- the function that will be called if this function was selected
         callback = Raidboss.MeteorStrike,
         -- the system assumes that this is the duration of the attack, e.g. the next attack will be selected after this time
@@ -459,6 +444,18 @@ Raidboss.AttackSchemes = {
         weight = 200,
         callback = Raidboss.ReflectArrow,
         duration = 15,
+        disallowRepeatedCasting = true
+    },
+    SummonAdds = {
+        weight = 200,
+        callback = Raidboss.SummonAdds,
+        duration = 5,
+        disallowRepeatedCasting = true
+    },
+    SummonBomb = {
+        weight = 200,
+        callback = Raidboss.SummonBomb,
+        duration = 3,
         disallowRepeatedCasting = true
     }
 }
