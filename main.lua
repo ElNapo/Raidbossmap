@@ -69,7 +69,8 @@ function Raidboss.Init( _eId, _pId)
         angle = math.rad(i * 5)
         dx = math.cos(angle)*Raidboss.CombatRange
         dy = math.sin(angle)*Raidboss.CombatRange
-        stoneId = Logic.CreateEntity( Entities.XD_Rock1, Raidboss.Origin.X + dx, Raidboss.Origin.Y + dy, i*5+90, 0)
+        stoneId = Logic.CreateEntity( Entities.XD_ScriptEntity, Raidboss.Origin.X + dx, Raidboss.Origin.Y + dy, i*5+90, Raidboss.pId)
+        Logic.SetEntityScriptingValue( stoneId, -30, 65793)
         Logic.SetModelAndAnimSet( stoneId, Models.Banners_XB_StandarteOccupied)
     end
 
