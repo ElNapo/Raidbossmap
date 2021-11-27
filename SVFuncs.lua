@@ -541,6 +541,17 @@ SW.SV.Data = {
 	["BuildingMaxHealth"] = {1, 7793784, 13, true},
 	["MaxWorkers"] = {1, 7793784, 42, true},
 	["InitialWorkers"] = {1, 7793784, 43, true},
+
+	["BuildingBlocked1X"] = {1, 7793784, 30, false},
+	["BuildingBlocked1Y"] = {1, 7793784, 31, false},
+	["BuildingBlocked2X"] = {1, 7793784, 32, false},
+	["BuildingBlocked2Y"] = {1, 7793784, 33, false},
+
+	["BuildingTerrain1X"] = {1, 7793784, 38, false},
+	["BuildingTerrain1Y"] = {1, 7793784, 39, false},
+	["BuildingTerrain2X"] = {1, 7793784, 40, false},
+	["BuildingTerrain2Y"] = {1, 7793784, 41, false},
+
 	-- Logic for entities, GGL::CGLSettlerProps == 7791768
 	["SettlerMaxHealth"] = {1, 7791768, 13, true},
 	["SettlerExploration"] = {1, 7791768, 19, false},
@@ -606,6 +617,7 @@ SW.SV.Data = {
 	["CannonDamageRange"] = {2, 7834836, 15, false}
 	
 }
+
 
 SW.SV.BackUps = {}
 -- Makes heavy use of upvalues!
@@ -690,6 +702,18 @@ function SW.SV.SearchForBehTable( _eType, _vTable)
 		end
 		i = i + 1
 	end
+end
+function SW.SV.SearchEntityBehTable(eId, vTable)
+    local p = S5Hook.GetEntityMem(eId)
+    local numTables = (p[32]:GetInt() - p[31]:GetInt())/4 - 1
+    for i = 0, numTables do
+        if p[31][i]:GetInt() ~= 0 then
+            if p[31][i][0]:GetInt() == vTable then
+                return p[31][i][0]
+            end    
+        end
+    end
+    Message('BehTable '..vTable..' for entity '..eId..' not found.')
 end
 function SW.SV.UnpackIndex( _p, _t)
 	if type(_t) == "number" then

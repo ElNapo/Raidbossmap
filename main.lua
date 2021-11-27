@@ -145,8 +145,8 @@ function Raidboss.ApplyKerbeConfigChanges()
     -- changes to the aura
     SW.SetHeroAuraRecharge( Entities.CU_BlackKnight, 0)
     SW.SetHeroAuraRange( Entities.CU_BlackKnight, 3000)
-    SW.SetHeroAuraDuration( Entities.CU_BlackKnight, 30)
-    SW.SetHeroAuraArmorMultiplier( Entities.CU_BlackKnight, 0.5)
+    SW.SetHeroAuraDuration( Entities.CU_BlackKnight, 15)
+    SW.SetHeroAuraArmorMultiplier( Entities.CU_BlackKnight, -100)
 
     -- regen, attack range and attack damage
     SW.SetLeaderDamage( Entities.CU_BlackKnight, Raidboss.Damage)
@@ -196,7 +196,7 @@ function Raidboss.OnKerbeDealsDamage( _victimId)
     -- get armor of obj
     local armor = Logic.GetEntityArmor( _victimId)
     local rawDamage = CEntity.TriggerGetDamage()
-    local multiplier = math.max(1 - armor / 14, 0)
+    local multiplier = math.min(math.max(1 - armor / 14, 0), 1)
     --LuaDebugger.Log(multiplier)
 
     -- set damage of trigger
@@ -323,11 +323,11 @@ end
 function Raidboss.MeteorStrike( _schemeTable, _targetPos)
     Raidboss.PlaySound( Sounds.Military_SO_CannonTowerFire_rnd_1, _targetPos)
     --local rX, rY
-    local spread = 500
+    local spread = _schemeTable.randomSpread
     local timeSpread = 2
-    local dmg = 100
-    local range = 350
-    for i = 1, 10 do
+    local dmg = _schemeTable.damage
+    local range = _schemeTable.radius
+    for i = 1, _schemeTable.numMeteors do
         local rX = math.random(-spread, spread)
         local rY = math.random(-spread, spread)
         MeteorSys.Add( _targetPos.X + rX, _targetPos.Y + rY, function()
@@ -341,7 +341,7 @@ function Raidboss.MeteorStrike( _schemeTable, _targetPos)
 end
 function Raidboss.FearStrike( _schemeTable, _targetPos)
     StartSimpleJob("Raidboss_FearStrike")
-    Raidboss.FearStrikeCounter = 8
+    Raidboss.FearStrikeCounter = _schemeTable.windUp
     local pos = GetPosition(Raidboss.eId)
     local angle, sin, cos
     for i = 1, 6 do
@@ -362,7 +362,7 @@ function Raidboss_FearStrike()
     else
         local angle, cos, sin, r
         local pos = GetPosition(Raidboss.eId)
-        r = Raidboss.FearStrikeCounter * 100
+        r = Raidboss.FearStrikeCounter * 800 / Raidboss.AttackSchemes.FearInducingStrike.windUp
         for i = 1, 6 do
             angle = (i + Raidboss.FearStrikeCounter/2) *60
             cos = math.cos(math.rad(angle))
@@ -388,17 +388,6 @@ function Raidboss.ArmorShred( _schemeTable, _targetPos)
     Raidboss.PlaySound( Sounds.VoicesHero7_HERO7_Madness_rnd_01, pos)
 end
 function Raidboss.ReflectArrow( _schemeTable, _targetPos)
-    --[[ Raidboss.ReflectArrowT = {
-        windUpMax = 50,
-        windUp = 50,
-        rangeStart = 3000,
-        rangeFinish = 800,
-        count = 36,
-        reflectDuration = 50,
-        reflectCounter = 50
-    }
-
-    StartSimpleHiResJob("Raidboss_ReflectArrowJob") ]]
     local pos = GetPosition(Raidboss.eId)
     local leaders = S5Hook.EntityIteratorTableize( Predicate.NotOfPlayer0(), Predicate.IsNotSoldier(), Predicate.InCircle( pos.X, pos.Y, 3000))
     local eType, posLeader
@@ -411,14 +400,15 @@ function Raidboss.ReflectArrow( _schemeTable, _targetPos)
         end
     end
     StartSimpleHiResJob("Raidboss_ReflectArrow_Job")
-    Raidboss.ReflectArrowCounter = 41
+    Raidboss.ReflectArrowCounter = _schemeTable.windUp*10+1
     Raidboss.PlaySound( Sounds.Coiner01, pos)
     Raidboss.ReflectArrowLeaders = leaders
 end
 function Raidboss_ReflectArrow_Job()
     Raidboss.ReflectArrowCounter = Raidboss.ReflectArrowCounter - 1
-    if math.mod(Raidboss.ReflectArrowCounter, 4) == 0 then
-        local myIndex = Raidboss.ReflectArrowCounter / 4
+    local windUp = Raidboss.AttackSchemes.ReflectArrows.windUp
+    if math.mod(Raidboss.ReflectArrowCounter, windUp) == 0 then
+        local myIndex = Raidboss.ReflectArrowCounter / windUp
         if myIndex > 0 then
             Raidboss.PlaySound( Sounds["Misc_Countdown"..myIndex], GetPosition(Raidboss.eId))
         end
@@ -426,7 +416,7 @@ function Raidboss_ReflectArrow_Job()
     if Raidboss.ReflectArrowCounter <= 0 then
         Raidboss.ReflectArrowActivateShield()
         StartSimpleJob("Raidboss_ReflectArrow_Job2")
-        Raidboss.ReflectArrowCounter = 8
+        Raidboss.ReflectArrowCounter = Raidboss.AttackSchemes.ReflectArrows.curseDuration
         return true
     end
 end
@@ -452,14 +442,13 @@ end
 function Raidboss_ReflectArrowOnHurt()
     if Event.GetEntityID2() ~= Raidboss.eId then return end
     local attacker = Event.GetEntityID1()
-    --LuaDebugger.Log(attacker)
     if IsDead(attacker) then return end
     local leader = attacker
     if Logic.IsEntityInCategory( attacker, EntityCategories.Soldier) == 1 then
         leader = Logic.GetEntityScriptingValue(attacker, 69)
     end
 
-    local dmg = 75
+    local dmg = Raidboss.AttackSchemes.ReflectArrows.damage
     local radius = 0
     for k,v in pairs(Raidboss.ReflectArrowLeaders) do
         if v == leader then
@@ -479,7 +468,7 @@ function Raidboss.SummonBomb( _schemeTable, _targetPos)
     local bombId = Logic.CreateEntity(Entities.XD_Bomb1, _targetPos.X, _targetPos.Y, 0, Raidboss.pId)
 	if bombId == 0 then return end
     Raidboss.PlaySound( Sounds.VoicesHero2_HERO2_PlaceBomb_rnd_01, _targetPos)
-	S5Hook.GetEntityMem(bombId)[31][0][4]:SetInt(80) --wait 8 seconds
+	S5Hook.GetEntityMem(bombId)[31][0][4]:SetInt(_schemeTable.explosionTime*10) --wait 8 seconds
 	S5Hook.GetEntityMem(bombId)[25]:SetFloat(8)
 end
 function Raidboss.MeteorRain( _schemeTable, _targetPos)
@@ -488,7 +477,7 @@ function Raidboss.MeteorRain( _schemeTable, _targetPos)
     --  (p(t), t*omega)
     -- p(t) = sum_{j=1}^6 w_j * (0.5*sin(j * 2pi / duration * t)+0.5)
     -- omega = 4 pi / duration
-    _schemeTable.omega = 4 * math.pi / _schemeTable.duration 
+    _schemeTable.omega = 2 * _schemeTable.numRotations * math.pi / _schemeTable.duration 
     local weights = {}
     local sumOfWeights = 0
     _schemeTable.phaseShifts = {}
@@ -527,7 +516,8 @@ function Raidboss_MeteorRainJob()
     
     local x = pos.X + radius*math.sin(angle)
     local y = pos.Y + radius*math.cos(angle)
-    local range, dmg = 250, 250
+    local range = Raidboss.AttackSchemes.MeteorRain.damageRange
+    local dmg = Raidboss.AttackSchemes.MeteorRain.damage
     MeteorSys.Add( x, y, function()
         if not IsDead(Raidboss.eId) then
             CEntity.DealDamageInArea( Raidboss.eId, x, y, range, dmg)
@@ -553,15 +543,17 @@ Raidboss.AttackSchemes = {
         -- parameters of the attack that will be used internally
         disallowRepeatedCasting = true,
         -- internal stuff
-        chargeTime = 5,
-        damage = 700,
-        radius = 750
+        randomSpread = 500, -- meteors can spawn at x plusminus randomSpread, same in y direction
+        damage = 100, -- damage of each meteor
+        radius = 350, -- damage radius of each meteor
+        numMeteors = 10 -- number of meteors spawned
     },
     FearInducingStrike = {
         weight = 15,
         callback = Raidboss.FearStrike,
         duration = 16,
-        disallowRepeatedCasting = true
+        disallowRepeatedCasting = true,
+        windUp = 8 -- wind up time for the fear in seconds
     },
     ArmorShred = {
         weight = 15,
@@ -573,25 +565,32 @@ Raidboss.AttackSchemes = {
         weight = 15,
         callback = Raidboss.ReflectArrow,
         duration = 15,
-        disallowRepeatedCasting = true
+        disallowRepeatedCasting = true,
+        windUp = 4, -- wind up time for the curse, HAS TO BE INT
+        curseDuration = 8, -- duration of the curse
+        damage = 75 -- damage per reflected arrow
     },
-    SummonAdds = {
+    SummonAdds = { -- not implemented, LOL
         weight = 0,
         callback = Raidboss.SummonAdds,
         duration = 5,
         disallowRepeatedCasting = true
     },
-    SummonBomb = {
+    SummonBomb = { -- if you wish to change damage / radius, use SW.SetBombDamage/SW.SetBombRange
         weight = 15,
         callback = Raidboss.SummonBomb,
         duration = 3,
-        disallowRepeatedCasting = true
+        disallowRepeatedCasting = true,
+        explosionTime = 8 -- time in seconds until it explodes
     },
     MeteorRain = {
         weight = 5,
         callback = Raidboss.MeteorRain,
         duration = 10,
         disallowRepeatedCasting = true,
-        range = 4500
+        numRotations = 2, -- the rain goes this number of full circles around kerberos
+        range = 4500, -- the theoretical maximum distance of meteor to kerberos, mean distance is half of this
+        damageRange = 250, -- aoe range of the meteor impact
+        damage = 250 -- damage of each meteor
     }
 }
