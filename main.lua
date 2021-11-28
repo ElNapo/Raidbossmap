@@ -31,6 +31,7 @@ Raidboss.LastHitTime = 0
 Raidboss.Regen = 100
 
 function Raidboss.Init( _eId, _pId)
+    Raidboss.CheckHookVersion()
     if SendEvent then CSendEvent = SendEvent end
     -- get control over framework on game closed
     Framework_CloseGame_Orig = Framework.CloseGame
@@ -41,6 +42,10 @@ function Raidboss.Init( _eId, _pId)
     Raidboss.ApplyKerbeConfigChanges()
     Raidboss.Origin = GetPosition( _eId)
     Raidboss.pId = GetPlayer(_eId)
+
+    -- register kerberos in stati
+    Logic.SetPlayerRawName( Raidboss.pId, "Kerberos")
+    Logic.PlayerSetIsHumanFlag( Raidboss.pId, 1)
 
     -- force respawn to enforce xml changes
     DestroyEntity(_eId)
@@ -86,7 +91,22 @@ function Raidboss.Init( _eId, _pId)
     StartSimpleJob("Raidboss_ControlKerbe")
 
 end
-
+function Raidboss.CheckHookVersion()
+    local version = "Not found"
+    if CppLogic then
+        version = CppLogic.Version
+    else
+        Sound.PlayGUISound( Sounds.fanfare, 100)
+        GUI.AddStaticNote("@color:255,0,0 mcbs hook was not found! This map will not work!")
+        return
+    end 
+    local expectedVersion = 1.3001
+    if expectedVersion > version then
+        Sound.PlayGUISound( Sounds.fanfare, 100)
+        GUI.AddStaticNote("@color:255,0,0 mcbs hook is outdated! This map will not work!")
+        GUI.AddStaticNote("Expected version: "..expectedVersion.."; Found version: "..version)
+    end
+end
 function Raidboss_ControlKerbe()
     local posKerbe = GetPosition(Raidboss.eId)
     -- if kerberos is in his arena? no need to do smth
@@ -100,7 +120,7 @@ function Raidboss_ControlKerbe()
     for i = 1, table.getn(listOfValidTargets) do
         eId = listOfValidTargets[i]
         if eId == Raidboss.eId then -- do nothing here, DONT ATTACK YOURSELF
-        elseif Logic.IsEntityInCategory( eId, EntityCategories.Hero) == 1 then
+        elseif Logic.IsEntityInCategory( eId, EntityCategories.Hero) == 1 and not IsDead(eId) then
             myTargetHero = myTargetHero or eId
         elseif Logic.IsEntityInCategory( eId, EntityCategories.LongRange) == 1 then
             myTargetMelee = myTargetMelee or eId
@@ -394,6 +414,8 @@ function Raidboss.ReflectArrow( _schemeTable, _targetPos)
     for i = table.getn(leaders), 1, -1 do
         if Logic.IsEntityInCategory( leaders[i], EntityCategories.LongRange) == 0 then
             table.remove(leaders, i)
+        elseif Logic.IsEntityInCategory( leaders[i], EntityCategories.Soldier) == 1 then
+            table.remove(leaders, i)
         else
             posLeader = GetPosition(leaders[i])
             Logic.CreateEffect( GGL_Effects.FXMaryDemoralize, posLeader.X, posLeader.Y, 0)
@@ -427,14 +449,14 @@ function Raidboss_ReflectArrow_Job2()
         return true
     end
     local pos
-    if Counter.Tick2("Raidboss_ReflectArrow", 2) then
-        for k,v in pairs(Raidboss.ReflectArrowLeaders) do
-            if not IsDead(v) then
-                pos = GetPosition(v)
-                Logic.CreateEffect(GGL_Effects.FXMaryDemoralize, pos.X, pos.Y, 0)
-            end
+    --if Counter.Tick2("Raidboss_ReflectArrow", 2) then
+    for k,v in pairs(Raidboss.ReflectArrowLeaders) do
+        if not IsDead(v) then
+            pos = GetPosition(v)
+            Logic.CreateEffect(GGL_Effects.FXMaryDemoralize, pos.X, pos.Y, 0)
         end
     end
+    --end
 end
 function Raidboss.ReflectArrowActivateShield()
     Raidboss.ReflectArrowTrigger = Trigger.RequestTrigger(Events.LOGIC_EVENT_ENTITY_HURT_ENTITY, nil, "Raidboss_ReflectArrowOnHurt", 1)
